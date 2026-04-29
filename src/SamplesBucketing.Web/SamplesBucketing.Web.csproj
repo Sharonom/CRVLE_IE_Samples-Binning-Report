@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SamplesBucketing.Web</RootNamespace>
+    <AssemblyName>SamplesBucketing.Web</AssemblyName>
+    <UserSecretsId>7d447b2e-b1ef-4f7f-9163-1d2acf265151</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
+  </ItemGroup>
+
+</Project>

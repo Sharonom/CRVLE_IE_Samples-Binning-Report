@@ -1,0 +1,201 @@
+@page
+@model VpoListModel
+@{
+    ViewData["Title"] = "Browse VPOs";
+}
+
+<div class="app-hero">
+    <h1>
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="me-2 mb-1" viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415zm-5.242 1.15a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11"/>
+        </svg>
+        Browse VPOs
+    </h1>
+    <p>Search for VPOs by number prefix. Select one or more and run a bin split directly from this page.</p>
+</div>
+
+<div class="container pb-5">
+
+    @* Search bar *@
+    <div class="card input-card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415zm-5.242 1.15a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11"/>
+            </svg>
+            Search VPOs
+        </div>
+        <div class="card-body">
+            <form method="get" autocomplete="off">
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-8 col-md-6">
+                        <label for="Search" class="form-label fw-semibold small" style="color:var(--intel-dark)">VPO Number / Prefix</label>
+                        <input id="Search"
+                               name="Search"
+                               type="text"
+                               class="form-control font-monospace vpo-textarea"
+                               value="@Model.Search"
+                               placeholder="e.g. J613" />
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-intel px-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415zm-5.242 1.15a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11"/>
+                            </svg>
+                            Search
+                        </button>
+                    </div>
+                </div>
+                <div class="form-text mt-1" style="color:var(--intel-blue);">
+                    Returns up to 200 most-recently completed VPOs matching the prefix. Leave blank to see the latest 200.
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.ErrorMessage is not null)
+    {
+        <div class="alert alert-danger shadow-sm" role="alert">@Model.ErrorMessage</div>
+    }
+
+    @if (Model.HasSearched)
+    {
+        @if (Model.Vpos.Count == 0)
+        {
+            <div class="alert alert-info border-0 shadow-sm">
+                <strong>No VPOs found</strong> matching <code>@Model.Search</code>.
+            </div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                <h5 class="mb-0 fw-bold" style="color:var(--intel-dark)">
+                    Results
+                    <span class="badge badge-intel ms-1">@Model.Vpos.Count VPO(s)</span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAll()">Select All</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAll()">Clear</button>
+                    <button type="button" class="btn btn-intel btn-sm px-3" onclick="runBinSplit()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="me-1" viewBox="0 0 16 16">
+                            <path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h13A1.5 1.5 0 0 1 16 1.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 14.5zm1.5-.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5z"/>
+                            <path d="M2 3h2v2H2zm0 3h2v2H2zm0 3h2v2H2zm3-6h2v2H5zm0 3h2v2H5zm0 3h2v2H5zm3-6h4v2H8zm0 3h4v2H8zm0 3h4v2H8z"/>
+                        </svg>
+                        Run Bin Split on Selected
+                    </button>
+                </div>
+            </div>
+
+            <div class="card shadow-sm" style="border:2px solid var(--intel-blue); border-radius:.75rem;">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-sm align-middle results-table mb-0" id="vpoTable">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width:2.5rem;">
+                                        <input type="checkbox" id="chkAll" title="Select all" onchange="toggleAll(this)" />
+                                    </th>
+                                    <th class="text-center">LOT</th>
+                                    <th class="text-center">STATUS</th>
+                                    <th class="text-center">SITE</th>
+                                    <th class="text-center">OPERATION</th>
+                                    <th class="text-center">FLOW</th>
+                                    <th class="text-center">TEST_END_DATE</th>
+                                    <th class="text-center">WW_END_TEST</th>
+                                    <th class="text-center">#TESTED</th>
+                                    <th class="text-center">T_GOOD</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.Vpos)
+                                {
+                                    <tr class="vpo-row" data-vpo="@row.VpoNumber" style="cursor:pointer;" onclick="toggleRow(this)">
+                                        <td class="text-center" onclick="event.stopPropagation();">
+                                            <input type="checkbox" class="vpo-chk" value="@row.VpoNumber" onchange="onChkChange()" />
+                                        </td>
+                                        <td class="text-center font-monospace fw-semibold">@row.VpoNumber</td>
+                                        <td class="text-center">
+                                            @{
+                                                var badgeCls = row.Status?.ToUpperInvariant() switch {
+                                                    "CLOSED"   => "bg-success",
+                                                    "OPEN"     => "badge-intel",
+                                                    "CANCELED" => "bg-secondary",
+                                                    _          => "bg-secondary"
+                                                };
+                                            }
+                                            <span class="badge @badgeCls">@row.Status</span>
+                                        </td>
+                                        <td class="text-center">@row.Site</td>
+                                        <td class="text-center">@row.Operation</td>
+                                        <td class="text-center">@row.Flow</td>
+                                        <td class="text-center text-nowrap">@(row.TestEndDate?.ToString("dd-MMM-yyyy HH:mm")?.ToUpperInvariant())</td>
+                                        <td class="text-center">@row.WwEndTest</td>
+                                        <td class="text-center fw-semibold">@row.Tested</td>
+                                        <td class="text-center fw-semibold">@row.Good</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            @* Hidden form that posts selected VPOs to the bin-split page *@
+            <form id="frmBinSplit" method="post" action="/">
+                <input type="hidden" name="VpoInput" id="hdnVpoInput" />
+            </form>
+        }
+    }
+</div>
+
+<style>
+    .vpo-row.selected { background-color: #cfe7fa !important; }
+</style>
+
+<script>
+    function toggleRow(tr) {
+        var chk = tr.querySelector('.vpo-chk');
+        chk.checked = !chk.checked;
+        tr.classList.toggle('selected', chk.checked);
+        syncHeaderCheckbox();
+    }
+    function onChkChange() {
+        document.querySelectorAll('.vpo-chk').forEach(function(c) {
+            c.closest('tr').classList.toggle('selected', c.checked);
+        });
+        syncHeaderCheckbox();
+    }
+    function toggleAll(hdr) {
+        document.querySelectorAll('.vpo-chk').forEach(function(c) {
+            c.checked = hdr.checked;
+            c.closest('tr').classList.toggle('selected', hdr.checked);
+        });
+    }
+    function syncHeaderCheckbox() {
+        var all   = document.querySelectorAll('.vpo-chk');
+        var chkd  = document.querySelectorAll('.vpo-chk:checked');
+        var hdr   = document.getElementById('chkAll');
+        if (!hdr) return;
+        hdr.checked       = chkd.length === all.length && all.length > 0;
+        hdr.indeterminate = chkd.length > 0 && chkd.length < all.length;
+    }
+    function selectAll() {
+        document.querySelectorAll('.vpo-chk').forEach(function(c) {
+            c.checked = true;
+            c.closest('tr').classList.add('selected');
+        });
+        syncHeaderCheckbox();
+    }
+    function clearAll() {
+        document.querySelectorAll('.vpo-chk').forEach(function(c) {
+            c.checked = false;
+            c.closest('tr').classList.remove('selected');
+        });
+        syncHeaderCheckbox();
+    }
+    function runBinSplit() {
+        var selected = Array.from(document.querySelectorAll('.vpo-chk:checked')).map(function(c) { return c.value; });
+        if (selected.length === 0) { alert('Please select at least one VPO.'); return; }
+        document.getElementById('hdnVpoInput').value = selected.join('\n');
+        document.getElementById('frmBinSplit').submit();
+    }
+</script>

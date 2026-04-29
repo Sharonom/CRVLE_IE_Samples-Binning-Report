@@ -1,0 +1,325 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "VPO Bin Split";
+}
+
+<div class="app-hero">
+    <h1>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" class="me-2 mb-1" viewBox="0 0 16 16">
+            <path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h13A1.5 1.5 0 0 1 16 1.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 14.5zm1.5-.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5z"/>
+            <path d="M2 3h2v2H2zm0 3h2v2H2zm0 3h2v2H2zm3-6h2v2H5zm0 3h2v2H5zm0 3h2v2H5zm3-6h4v2H8zm0 3h4v2H8zm0 3h4v2H8z"/>
+        </svg>
+        VPO Bin Split
+    </h1>
+    <p>Query Vortex bin assignments and Visual ID unit counts for one or more VPOs. Results export to Excel.</p>
+</div>
+
+<div class="container pb-4">
+
+    <div class="card input-card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z"/>
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+            </svg>
+            Enter VPO Numbers
+        </div>
+        <div class="card-body">
+            <form method="post" autocomplete="off">
+                <div class="mb-3">
+                    <textarea id="VpoInput"
+                              name="VpoInput"
+                              class="form-control font-monospace vpo-textarea @(Model.ErrorMessage is not null ? "is-invalid" : "")"
+                              rows="3"
+                              placeholder="J613007ES1, J613008ES1 ...">@Model.VpoInput</textarea>
+                    @if (Model.ErrorMessage is not null)
+                    {
+                        <div class="invalid-feedback">@Model.ErrorMessage</div>
+                    }
+                    else
+                    {
+                        <div class="form-text mt-1" style="color:#0068B5;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" class="me-1" viewBox="0 0 16 16">
+                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                            </svg>
+                            Accepts newlines, commas, semicolons, or spaces &mdash; up to 1,000 VPOs per search.
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="submit" asp-page-handler="" class="btn btn-intel px-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415zm-5.242 1.15a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11"/>
+                        </svg>
+                        Search
+                    </button>
+                    <button type="submit" asp-page-handler="Excel" class="btn btn-outline-success px-4 fw-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M5.884 6.68a.5.5 0 1 0-.768.64L7.349 10l-2.233 2.68a.5.5 0 0 0 .768.64L8 10.781l2.116 2.54a.5.5 0 0 0 .768-.641L8.651 10l2.233-2.68a.5.5 0 0 0-.768-.64L8 9.219z"/>
+                            <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                        </svg>
+                        Download Excel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.HasSearched)
+    {
+        <div id="results">
+            @if (Model.PivotRows.Count == 0)
+            {
+                <div class="alert alert-info border-0 shadow-sm" role="alert">
+                    <strong>No results found.</strong> None of the submitted VPO numbers matched records in Vortex.
+                </div>
+            }
+            else
+            {
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h5 class="mb-0 fw-bold" style="color:var(--intel-dark)">
+                        Results
+                        <span class="badge badge-intel ms-1">@Model.PivotRows.Count VPO(s)</span>
+                        <span class="badge bg-secondary ms-1">@Model.BinColumns.Count bin(s)</span>
+                    </h5>
+                </div>
+
+                <div class="card shadow-sm" style="border:2px solid var(--intel-blue); border-radius:.75rem;">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-sm align-middle results-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="text-center">SITE</th>
+                                        <th scope="col" class="text-center">LOT</th>
+                                        <th scope="col" class="text-center">OPERATION</th>
+                                        <th scope="col" class="text-center">FLOW</th>
+                                        <th scope="col" class="text-center">TEST_END_DATE</th>
+                                        <th scope="col" class="text-center">WW_END_TEST</th>
+                                        <th scope="col" class="text-center">#TESTED</th>
+                                        <th scope="col" class="text-center">T_GOOD</th>
+                                        @foreach (var bin in Model.BinColumns)
+                                        {
+                                            <th scope="col" class="text-center bin-header"
+                                                data-bin="@bin"
+                                                style="cursor:pointer; user-select:none;"
+                                                title="Click to view Visual IDs for @bin">
+                                                @bin
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" class="ms-1 mb-1 opacity-50" viewBox="0 0 16 16">
+                                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                                                </svg>
+                                            </th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in Model.PivotRows)
+                                    {
+                                        <tr>
+                                            <td class="text-center">@row.Site</td>
+                                            <td class="text-center font-monospace fw-semibold">@row.VpoNumber</td>
+                                            <td class="text-center">@row.Operation</td>
+                                            <td class="text-center">@row.Flow</td>
+                                            <td class="text-center text-nowrap">@(row.TestEndDate?.ToString("dd-MMM-yyyy HH:mm:ss")?.ToUpperInvariant())</td>
+                                            <td class="text-center">@row.WwEndTest</td>
+                                            <td class="text-center fw-semibold">@row.Tested</td>
+                                            <td class="text-center fw-semibold">@row.Good</td>
+                                            @foreach (var bin in Model.BinColumns)
+                                            {
+                                                var qty = row.BinCounts.TryGetValue(bin, out var q) ? q : 0;
+                                                <td class="text-center @(qty > 0 ? "fw-semibold" : "text-muted")" data-vpo="@row.VpoNumber" data-bin="@bin">@(qty > 0 ? qty : 0)</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="6" class="text-end pe-2">TOTAL</td>
+                                        <td class="text-center">@Model.PivotRows.Sum(r => r.Tested)</td>
+                                        <td class="text-center">@Model.PivotRows.Sum(r => r.Good)</td>
+                                        @foreach (var bin in Model.BinColumns)
+                                        {
+                                            <td class="text-center">@Model.PivotRows.Sum(r => r.BinCounts.TryGetValue(bin, out var q) ? q : 0)</td>
+                                        }
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Visual IDs Modal -->
+<div class="modal fade" id="visualIdModal" tabindex="-1" aria-labelledby="visualIdModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--intel-blue); color:white;">
+                <div>
+                    <h5 class="modal-title mb-0" id="visualIdModalLabel">Visual IDs</h5>
+                    <small id="visualIdSubtitle" class="opacity-75"></small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="text-center py-4" id="visualIdLoading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading Visual IDs...</p>
+                </div>
+                <div id="visualIdContent" style="display:none;">
+                    <p id="visualIdCount" class="text-muted mb-3 fw-semibold small"></p>
+                    <div class="accordion" id="visualIdAccordion"></div>
+                </div>
+                <div id="visualIdError" style="display:none;" class="alert alert-danger mb-0"></div>
+            </div>
+            <div class="modal-footer">
+                <a id="visualIdExcelBtn" href="#" class="btn btn-outline-success fw-semibold">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                        <path d="M5.884 6.68a.5.5 0 1 0-.768.64L7.349 10l-2.233 2.68a.5.5 0 0 0 .768.64L8 10.781l2.116 2.54a.5.5 0 0 0 .768-.641L8.651 10l2.233-2.68a.5.5 0 0 0-.768-.64L8 9.219z"/>
+                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                    </svg>
+                    Export to Excel
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        function esc(str) {
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showVisualIdModal(bin) {
+            // Collect VPO numbers that have a non-zero count in this bin column
+            var vpoSet = new Set();
+            document.querySelectorAll('td[data-bin]').forEach(function (td) {
+                if (td.getAttribute('data-bin') === bin) {
+                    var txt = td.textContent.trim();
+                    if (txt !== '' && txt !== '0') {
+                        vpoSet.add(td.getAttribute('data-vpo'));
+                    }
+                }
+            });
+            var vpos = Array.from(vpoSet);
+
+            // Reset modal state
+            document.getElementById('visualIdModalLabel').textContent = 'Visual IDs \u2014 Bin: ' + bin;
+            document.getElementById('visualIdSubtitle').textContent = vpos.length + ' VPO(s)';
+            document.getElementById('visualIdLoading').style.display = 'block';
+            document.getElementById('visualIdContent').style.display = 'none';
+            document.getElementById('visualIdError').style.display = 'none';
+            document.getElementById('visualIdAccordion').innerHTML = '';
+
+            var excelUrl = '?handler=BinVisualIdsExcel&bin=' + encodeURIComponent(bin)
+                + vpos.map(function (v) { return '&vpo=' + encodeURIComponent(v); }).join('');
+            document.getElementById('visualIdExcelBtn').href = excelUrl;
+
+            // Show modal
+            var modalEl = document.getElementById('visualIdModal');
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+
+            if (vpos.length === 0) {
+                document.getElementById('visualIdLoading').style.display = 'none';
+                var errEl = document.getElementById('visualIdError');
+                errEl.textContent = 'No units found in bin "' + bin + '" for the current results.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            var fetchUrl = '?handler=BinVisualIds&bin=' + encodeURIComponent(bin)
+                + vpos.map(function (v) { return '&vpo=' + encodeURIComponent(v); }).join('');
+
+            fetch(fetchUrl)
+                .then(function (resp) {
+                    return resp.json().then(function (data) {
+                        return { ok: resp.ok, status: resp.status, data: data };
+                    });
+                })
+                .then(function (result) {
+                    document.getElementById('visualIdLoading').style.display = 'none';
+
+                    if (!result.ok || (result.data && result.data.error)) {
+                        var msg = (result.data && result.data.error) ? result.data.error : ('HTTP ' + result.status);
+                        var errEl = document.getElementById('visualIdError');
+                        errEl.textContent = 'Server error: ' + msg;
+                        errEl.style.display = 'block';
+                        console.error('[BinVisualIds]', result.data);
+                        return;
+                    }
+
+                    var groups = result.data;
+                    if (!groups || groups.length === 0) {
+                        var errEl = document.getElementById('visualIdError');
+                        errEl.textContent = 'No Visual IDs found for bin "' + bin + '".';
+                        errEl.style.display = 'block';
+                        return;
+                    }
+
+                    var totalIds = groups.reduce(function (s, g) { return s + g.VisualIds.length; }, 0);
+                    document.getElementById('visualIdCount').textContent =
+                        totalIds.toLocaleString() + ' Visual ID(s) across ' + groups.length + ' VPO(s)';
+
+                    var accordion = document.getElementById('visualIdAccordion');
+                    groups.forEach(function (group, idx) {
+                        var collapseId = 'vpoCollapse' + idx;
+                        var isFirst = idx === 0;
+                        var rows = group.VisualIds.map(function (id, i) {
+                            return '<tr><td class="text-center text-muted" style="width:50px">' + (i + 1) +
+                                '</td><td class="font-monospace">' + esc(id) + '</td></tr>';
+                        }).join('');
+
+                        var html =
+                            '<div class="accordion-item">' +
+                            '<h2 class="accordion-header">' +
+                            '<button class="accordion-button ' + (isFirst ? '' : 'collapsed') + '" type="button"' +
+                            ' data-bs-toggle="collapse" data-bs-target="#' + collapseId + '">' +
+                            '<span class="font-monospace fw-bold me-2">' + esc(group.VpoNumber) + '</span>' +
+                            '<span class="badge bg-secondary ms-1">' + group.VisualIds.length.toLocaleString() + ' Visual IDs</span>' +
+                            '</button></h2>' +
+                            '<div id="' + collapseId + '" class="accordion-collapse collapse ' + (isFirst ? 'show' : '') + '"' +
+                            ' data-bs-parent="#visualIdAccordion">' +
+                            '<div class="accordion-body p-2">' +
+                            '<div style="max-height:300px;overflow-y:auto;">' +
+                            '<table class="table table-sm table-striped table-hover align-middle mb-0">' +
+                            '<thead class="table-dark"><tr><th style="width:50px" class="text-center">#</th><th>Visual ID</th></tr></thead>' +
+                            '<tbody>' + rows + '</tbody>' +
+                            '</table></div></div></div></div>';
+                        accordion.insertAdjacentHTML('beforeend', html);
+                    });
+
+                    document.getElementById('visualIdContent').style.display = 'block';
+                })
+                .catch(function (err) {
+                    document.getElementById('visualIdLoading').style.display = 'none';
+                    var errEl = document.getElementById('visualIdError');
+                    errEl.textContent = 'Network error: ' + err.message;
+                    errEl.style.display = 'block';
+                    console.error('[BinVisualIds] Fetch error:', err);
+                });
+        }
+
+        // Event delegation — works regardless of when Bootstrap or headers load
+        document.addEventListener('click', function (e) {
+            var th = e.target.closest('th.bin-header');
+            if (!th) return;
+            e.preventDefault();
+            var bin = th.getAttribute('data-bin');
+            if (!bin) return;
+            showVisualIdModal(bin);
+        });
+    })();
+</script>

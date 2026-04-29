@@ -1,0 +1,17 @@
+## .NET / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.lscache
+
+## User secrets (never commit)
+**/secrets.json
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+
+## OS
+Thumbs.db
+.DS_Store
