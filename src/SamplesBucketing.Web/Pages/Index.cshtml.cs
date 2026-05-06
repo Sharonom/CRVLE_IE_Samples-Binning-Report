@@ -25,6 +25,12 @@ public class IndexModel : PageModel
     /// <summary>All bin names across every result VPO, in sorted order (used for column headers).</summary>
     public IReadOnlyList<string> BinColumns { get; private set; } = Array.Empty<string>();
 
+    /// <summary>Flat Visual ID detail rows — populated on search for the inline debug table.</summary>
+    public IReadOnlyList<VisualIdDetailRow> VisualIdRows { get; private set; } = Array.Empty<VisualIdDetailRow>();
+    public string? VisualIdError { get; private set; }
+    /// <summary>Columns of vw_public_material_result — shown when VisualIdError is set to identify correct column name.</summary>
+    public IReadOnlyList<string> SchemaColumns { get; private set; } = Array.Empty<string>();
+
     public string? ErrorMessage { get; private set; }
     public bool HasSearched { get; private set; }
 
@@ -47,6 +53,20 @@ public class IndexModel : PageModel
         {
             ErrorMessage = $"Database error: {ex.Message}";
         }
+
+        // Load Visual IDs inline for the debug table
+        try
+        {
+            VisualIdRows = await _vpoBinService.GetAllVisualIdsForVposAsync(vpos, ct);
+        }
+        catch (Exception ex)
+        {
+            VisualIdError = ex.Message;
+            // Fetch schema so we can show the actual column names in the error
+            try { SchemaColumns = await _vpoBinService.GetMaterialResultColumnsAsync(ct); }
+            catch { /* ignore */ }
+        }
+
         return Page();
     }
 
@@ -118,6 +138,23 @@ public class IndexModel : PageModel
         {
             var cols = await _vpoBinService.GetMaterialResultColumnsAsync(ct);
             return new JsonResult(cols);
+        }
+        catch (Exception ex)
+        {
+            return new JsonResult(new { error = ex.Message }) { StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Diagnostic: returns column names + top 3 sample rows from vw_public_material_result.
+    /// Navigate to /?handler=SampleRows in the browser.
+    /// </summary>
+    public async Task<IActionResult> OnGetSampleRowsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var (columns, rows) = await _vpoBinService.GetSampleMaterialResultRowsAsync(ct);
+            return new JsonResult(new { columns, rows });
         }
         catch (Exception ex)
         {

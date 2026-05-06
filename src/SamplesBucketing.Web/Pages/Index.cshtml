@@ -105,6 +105,8 @@
                                         {
                                             <th scope="col" class="text-center bin-header"
                                                 data-bin="@bin"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#visualIdModal"
                                                 style="cursor:pointer; user-select:none;"
                                                 title="Click to view Visual IDs for @bin">
                                                 @bin
@@ -147,6 +149,74 @@
                                         }
                                     </tr>
                                 </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (Model.HasSearched)
+    {
+        <div id="visualIdDebugSection" class="mt-4">
+            <h5 class="fw-bold mb-2" style="color:var(--intel-dark)">
+                Visual ID Detail
+                @if (Model.VisualIdRows.Count > 0)
+                {
+                    <span class="badge bg-secondary ms-1">@Model.VisualIdRows.Count row(s)</span>
+                }
+            </h5>
+
+            @if (Model.VisualIdError is not null)
+            {
+                <div class="alert alert-danger">
+                    <strong>Visual ID query error:</strong> @Model.VisualIdError
+                    @if (Model.SchemaColumns.Count > 0)
+                    {
+                        <hr />
+                        <strong>Actual columns in <code>vw_public_material_result</code>:</strong>
+                        <ul class="mb-0 mt-1">
+                            @foreach (var col in Model.SchemaColumns)
+                            {
+                                <li><code>@col</code></li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+            else if (Model.VisualIdRows.Count == 0)
+            {
+                <div class="alert alert-warning">
+                    Visual ID query returned 0 rows. The <code>visual_id</code> column may not be populated or the join returned no matches.
+                </div>
+            }
+            else
+            {
+                <div class="card shadow-sm" style="border:2px solid var(--intel-blue); border-radius:.75rem;">
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height:400px; overflow-y:auto;">
+                            <table class="table table-striped table-hover table-sm align-middle mb-0">
+                                <thead style="position:sticky;top:0;">
+                                    <tr>
+                                        <th class="text-center">#</th>
+                                        <th class="text-center">VPO</th>
+                                        <th class="text-center">BIN</th>
+                                        <th class="text-center">VISUAL ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ int seq = 1; }
+                                    @foreach (var r in Model.VisualIdRows)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted">@(seq++)</td>
+                                            <td class="text-center font-monospace fw-semibold">@r.VpoNumber</td>
+                                            <td class="text-center">@r.BinName</td>
+                                            <td class="text-center font-monospace">@r.VisualId</td>
+                                        </tr>
+                                    }
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -202,70 +272,73 @@
                 .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        function showVisualIdModal(bin) {
-            // Collect VPO numbers that have a non-zero count in this bin column
-            var vpoSet = new Set();
-            document.querySelectorAll('td[data-bin]').forEach(function (td) {
-                if (td.getAttribute('data-bin') === bin) {
-                    var txt = td.textContent.trim();
-                    if (txt !== '' && txt !== '0') {
-                        vpoSet.add(td.getAttribute('data-vpo'));
-                    }
-                }
-            });
-            var vpos = Array.from(vpoSet);
+        var modalEl = document.getElementById('visualIdModal');
 
-            // Reset modal state
-            document.getElementById('visualIdModalLabel').textContent = 'Visual IDs \u2014 Bin: ' + bin;
-            document.getElementById('visualIdSubtitle').textContent = vpos.length + ' VPO(s)';
+        // Bootstrap fires show.bs.modal before the modal becomes visible.
+        // e.relatedTarget is the element that triggered it (our <th>).
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var trigger = e.relatedTarget;
+            var bin = trigger ? trigger.getAttribute('data-bin') : null;
+
+            // Reset state
+            document.getElementById('visualIdModalLabel').textContent = bin ? ('Visual IDs \u2014 Bin: ' + bin) : 'Visual IDs';
+            document.getElementById('visualIdSubtitle').textContent = '';
             document.getElementById('visualIdLoading').style.display = 'block';
             document.getElementById('visualIdContent').style.display = 'none';
             document.getElementById('visualIdError').style.display = 'none';
             document.getElementById('visualIdAccordion').innerHTML = '';
+            document.getElementById('visualIdExcelBtn').href = '#';
 
-            var excelUrl = '?handler=BinVisualIdsExcel&bin=' + encodeURIComponent(bin)
-                + vpos.map(function (v) { return '&vpo=' + encodeURIComponent(v); }).join('');
-            document.getElementById('visualIdExcelBtn').href = excelUrl;
-
-            // Show modal
-            var modalEl = document.getElementById('visualIdModal');
-            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-
-            if (vpos.length === 0) {
+            if (!bin) {
                 document.getElementById('visualIdLoading').style.display = 'none';
-                var errEl = document.getElementById('visualIdError');
-                errEl.textContent = 'No units found in bin "' + bin + '" for the current results.';
-                errEl.style.display = 'block';
+                document.getElementById('visualIdError').textContent = 'Could not determine which bin was clicked.';
+                document.getElementById('visualIdError').style.display = 'block';
                 return;
             }
 
-            var fetchUrl = '?handler=BinVisualIds&bin=' + encodeURIComponent(bin)
-                + vpos.map(function (v) { return '&vpo=' + encodeURIComponent(v); }).join('');
+            // Collect VPOs with non-zero count for this bin from the table
+            var vpos = [];
+            document.querySelectorAll('td[data-bin]').forEach(function (td) {
+                if (td.getAttribute('data-bin') === bin) {
+                    var val = parseInt(td.textContent.trim(), 10);
+                    if (val > 0) vpos.push(td.getAttribute('data-vpo'));
+                }
+            });
 
-            fetch(fetchUrl)
+            document.getElementById('visualIdSubtitle').textContent = vpos.length + ' VPO(s)';
+
+            var qs = '&bin=' + encodeURIComponent(bin)
+                + vpos.map(function (v) { return '&vpo=' + encodeURIComponent(v); }).join('');
+            document.getElementById('visualIdExcelBtn').href = '?handler=BinVisualIdsExcel' + qs;
+
+            if (vpos.length === 0) {
+                document.getElementById('visualIdLoading').style.display = 'none';
+                document.getElementById('visualIdError').textContent = 'No units assigned to bin "' + bin + '" in the current results.';
+                document.getElementById('visualIdError').style.display = 'block';
+                return;
+            }
+
+            fetch('?handler=BinVisualIds' + qs)
                 .then(function (resp) {
                     return resp.json().then(function (data) {
-                        return { ok: resp.ok, status: resp.status, data: data };
+                        return { ok: resp.ok, data: data };
                     });
                 })
                 .then(function (result) {
                     document.getElementById('visualIdLoading').style.display = 'none';
 
                     if (!result.ok || (result.data && result.data.error)) {
-                        var msg = (result.data && result.data.error) ? result.data.error : ('HTTP ' + result.status);
-                        var errEl = document.getElementById('visualIdError');
-                        errEl.textContent = 'Server error: ' + msg;
-                        errEl.style.display = 'block';
+                        var msg = (result.data && result.data.error) ? result.data.error : 'Server error';
+                        document.getElementById('visualIdError').textContent = msg;
+                        document.getElementById('visualIdError').style.display = 'block';
                         console.error('[BinVisualIds]', result.data);
                         return;
                     }
 
                     var groups = result.data;
                     if (!groups || groups.length === 0) {
-                        var errEl = document.getElementById('visualIdError');
-                        errEl.textContent = 'No Visual IDs found for bin "' + bin + '".';
-                        errEl.style.display = 'block';
+                        document.getElementById('visualIdError').textContent = 'No Visual IDs found for bin "' + bin + '".';
+                        document.getElementById('visualIdError').style.display = 'block';
                         return;
                     }
 
@@ -276,50 +349,38 @@
                     var accordion = document.getElementById('visualIdAccordion');
                     groups.forEach(function (group, idx) {
                         var collapseId = 'vpoCollapse' + idx;
-                        var isFirst = idx === 0;
+                        var isFirst = (idx === 0);
                         var rows = group.VisualIds.map(function (id, i) {
-                            return '<tr><td class="text-center text-muted" style="width:50px">' + (i + 1) +
-                                '</td><td class="font-monospace">' + esc(id) + '</td></tr>';
+                            return '<tr><td class="text-center text-muted" style="width:50px">' + (i + 1)
+                                + '</td><td class="font-monospace">' + esc(id) + '</td></tr>';
                         }).join('');
 
-                        var html =
-                            '<div class="accordion-item">' +
-                            '<h2 class="accordion-header">' +
-                            '<button class="accordion-button ' + (isFirst ? '' : 'collapsed') + '" type="button"' +
-                            ' data-bs-toggle="collapse" data-bs-target="#' + collapseId + '">' +
-                            '<span class="font-monospace fw-bold me-2">' + esc(group.VpoNumber) + '</span>' +
-                            '<span class="badge bg-secondary ms-1">' + group.VisualIds.length.toLocaleString() + ' Visual IDs</span>' +
-                            '</button></h2>' +
-                            '<div id="' + collapseId + '" class="accordion-collapse collapse ' + (isFirst ? 'show' : '') + '"' +
-                            ' data-bs-parent="#visualIdAccordion">' +
-                            '<div class="accordion-body p-2">' +
-                            '<div style="max-height:300px;overflow-y:auto;">' +
-                            '<table class="table table-sm table-striped table-hover align-middle mb-0">' +
-                            '<thead class="table-dark"><tr><th style="width:50px" class="text-center">#</th><th>Visual ID</th></tr></thead>' +
-                            '<tbody>' + rows + '</tbody>' +
-                            '</table></div></div></div></div>';
-                        accordion.insertAdjacentHTML('beforeend', html);
+                        accordion.insertAdjacentHTML('beforeend',
+                            '<div class="accordion-item">'
+                            + '<h2 class="accordion-header">'
+                            + '<button class="accordion-button ' + (isFirst ? '' : 'collapsed') + '" type="button"'
+                            + ' data-bs-toggle="collapse" data-bs-target="#' + collapseId + '">'
+                            + '<span class="font-monospace fw-bold me-2">' + esc(group.VpoNumber) + '</span>'
+                            + '<span class="badge bg-secondary ms-1">' + group.VisualIds.length.toLocaleString() + ' Visual IDs</span>'
+                            + '</button></h2>'
+                            + '<div id="' + collapseId + '" class="accordion-collapse collapse ' + (isFirst ? 'show' : '') + '"'
+                            + ' data-bs-parent="#visualIdAccordion">'
+                            + '<div class="accordion-body p-2">'
+                            + '<div style="max-height:300px;overflow-y:auto;">'
+                            + '<table class="table table-sm table-striped table-hover align-middle mb-0">'
+                            + '<thead class="table-dark"><tr><th style="width:50px" class="text-center">#</th><th>Visual ID</th></tr></thead>'
+                            + '<tbody>' + rows + '</tbody>'
+                            + '</table></div></div></div></div>');
                     });
 
                     document.getElementById('visualIdContent').style.display = 'block';
                 })
                 .catch(function (err) {
                     document.getElementById('visualIdLoading').style.display = 'none';
-                    var errEl = document.getElementById('visualIdError');
-                    errEl.textContent = 'Network error: ' + err.message;
-                    errEl.style.display = 'block';
-                    console.error('[BinVisualIds] Fetch error:', err);
+                    document.getElementById('visualIdError').textContent = 'Network error: ' + err.message;
+                    document.getElementById('visualIdError').style.display = 'block';
+                    console.error('[BinVisualIds]', err);
                 });
-        }
-
-        // Event delegation — works regardless of when Bootstrap or headers load
-        document.addEventListener('click', function (e) {
-            var th = e.target.closest('th.bin-header');
-            if (!th) return;
-            e.preventDefault();
-            var bin = th.getAttribute('data-bin');
-            if (!bin) return;
-            showVisualIdModal(bin);
         });
     })();
 </script>

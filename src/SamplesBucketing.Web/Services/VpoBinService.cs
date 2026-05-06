@@ -77,7 +77,7 @@ public sealed class VpoBinService : IVpoBinService
             return Array.Empty<string>();
 
         const string sql = """
-            SELECT mr.visual_id
+            SELECT mr.material_name
             FROM  vortex_dbo.vw_vpo v
             INNER JOIN vortex_dbo.vw_public_task t
                    ON t.task_id = v.current_task_id
@@ -87,7 +87,7 @@ public sealed class VpoBinService : IVpoBinService
                    ON mr.result_id = b.result_id
             WHERE v.vpo_number = @vpoNumber
               AND b.bin_name   = @binName
-            ORDER BY mr.visual_id;
+            ORDER BY mr.material_name;
             """;
 
         using var conn = _factory.CreateConnection();
@@ -112,8 +112,8 @@ public sealed class VpoBinService : IVpoBinService
             return Array.Empty<VisualIdGroup>();
 
         const string sql = """
-            SELECT v.vpo_number  AS VpoNumber,
-                   mr.visual_id  AS VisualId
+            SELECT v.vpo_number      AS VpoNumber,
+                   mr.material_name  AS VisualId
             FROM  vortex_dbo.vw_vpo v
             INNER JOIN vortex_dbo.vw_public_task t
                    ON t.task_id = v.current_task_id
@@ -123,7 +123,7 @@ public sealed class VpoBinService : IVpoBinService
                    ON mr.result_id = b.result_id
             WHERE v.vpo_number IN @vpos
               AND b.bin_name    = @binName
-            ORDER BY v.vpo_number, mr.visual_id;
+            ORDER BY v.vpo_number, mr.material_name;
             """;
 
         using var conn = _factory.CreateConnection();
@@ -159,5 +159,62 @@ public sealed class VpoBinService : IVpoBinService
         var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
         var cols = await conn.QueryAsync<string>(command);
         return cols.AsList();
+    }
+
+    public async Task<IReadOnlyList<VisualIdDetailRow>> GetAllVisualIdsForVposAsync(
+        IEnumerable<string> vpoNumbers,
+        CancellationToken cancellationToken = default)
+    {
+        var vpos = vpoNumbers
+            .Select(v => v.Trim())
+            .Where(v => v.Length > 0 && v.Length <= MaxVpoLength)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(MaxVpoCount)
+            .ToList();
+
+        if (vpos.Count == 0)
+            return Array.Empty<VisualIdDetailRow>();
+
+        const string sql = """
+            SELECT v.vpo_number      AS VpoNumber,
+                   b.bin_name        AS BinName,
+                   mr.material_name  AS VisualId
+            FROM  vortex_dbo.vw_vpo v
+            INNER JOIN vortex_dbo.vw_public_task t
+                   ON t.task_id = v.current_task_id
+            INNER JOIN vortex_dbo.vw_public_result_bin b
+                   ON b.task_id = v.current_task_id
+            INNER JOIN vortex_dbo.vw_public_material_result mr
+                   ON mr.result_id = b.result_id
+            WHERE v.vpo_number IN @vpos
+            ORDER BY v.vpo_number, b.bin_name, mr.material_name;
+            """;
+
+        using var conn = _factory.CreateConnection();
+        var command = new CommandDefinition(sql, new { vpos }, cancellationToken: cancellationToken);
+        var rows = await conn.QueryAsync<VisualIdDetailRow>(command);
+        return rows.AsList();
+    }
+
+    public async Task<(IReadOnlyList<string> Columns, IReadOnlyList<Dictionary<string, object?>> Rows)>
+        GetSampleMaterialResultRowsAsync(CancellationToken cancellationToken = default)
+    {
+        const string sql = "SELECT TOP 3 * FROM vortex_dbo.vw_public_material_result;";
+
+        using var conn = _factory.CreateConnection();
+        var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
+        var dynamics = (await conn.QueryAsync(command)).AsList();
+
+        if (dynamics.Count == 0)
+            return (Array.Empty<string>(), Array.Empty<Dictionary<string, object?>>());
+
+        var first = (IDictionary<string, object>)dynamics[0];
+        var columns = first.Keys.ToList();
+        var rows = dynamics
+            .Select(d => ((IDictionary<string, object>)d)
+                .ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+            .ToList();
+
+        return (columns, rows);
     }
 }

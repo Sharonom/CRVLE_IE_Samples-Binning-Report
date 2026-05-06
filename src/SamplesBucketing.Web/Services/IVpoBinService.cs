@@ -24,4 +24,13 @@ public interface IVpoBinService
     /// <summary>Returns column names of vw_public_material_result for diagnostics.</summary>
     Task<IReadOnlyList<string>> GetMaterialResultColumnsAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>Returns all Visual ID detail rows for the given VPOs across every bin.</summary>
+    Task<IReadOnlyList<VisualIdDetailRow>> GetAllVisualIdsForVposAsync(
+        IEnumerable<string> vpoNumbers,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Diagnostic: returns column names + top 3 rows from vw_public_material_result as raw dictionaries.</summary>
+    Task<(IReadOnlyList<string> Columns, IReadOnlyList<Dictionary<string, object?>> Rows)>
+        GetSampleMaterialResultRowsAsync(CancellationToken cancellationToken = default);
 }
